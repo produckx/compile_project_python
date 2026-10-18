@@ -1,3 +1,6 @@
 /venv
 */wheelhouse
 */venv
+
+
+*.spec

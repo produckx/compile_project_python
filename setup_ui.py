@@ -141,10 +141,26 @@ def main():
     exclude_dirs = cfg.get("exclude_dirs", [])
     exclude_files = cfg.get("exclude_files", [])
     exclude_exts = cfg.get("exclude_extensions", [])
-    keep_py_files = cfg.get("keep_py_files", [])
-    keep_py_set = set(keep_py_files) | {"__init__.py", "__main__.py"}
+    keep_files = cfg.get("keep_files", cfg.get("keep_py_files", []))
+    keep_file_set = {os.path.normcase(path.replace("\\", "/")) for path in keep_files}
+    keep_file_names = {os.path.basename(path) for path in keep_files}
+    keep_folders = {
+        os.path.normcase(path.replace("\\", "/").strip("/"))
+        for path in cfg.get("keep_folders", [])
+    }
     obfuscate_web = cfg.get("obfuscate_web", True)
     temp_build = os.path.join(os.environ.get("TEMP", "/tmp"), "pyd_build_tmp")
+
+    def _normalized_relpath(path):
+        return os.path.normcase(os.path.relpath(path, args.src).replace("\\", "/").strip("/"))
+
+    def _is_kept_folder(path):
+        rel_path = _normalized_relpath(path)
+        return any(rel_path == folder or rel_path.startswith(folder + "/") for folder in keep_folders)
+
+    def _is_kept_file(path):
+        rel_path = _normalized_relpath(path)
+        return rel_path in keep_file_set or os.path.basename(path) in keep_file_names
 
     try:
         if os.path.exists(temp_build):
@@ -154,10 +170,14 @@ def main():
         # ── Step 1: Compile .py -> .pyd ──
         py_files = []
         for root, dirs, files in os.walk(args.src):
-            dirs[:] = [d for d in dirs if d not in exclude_dirs]
+            dirs[:] = [
+                d for d in dirs
+                if d not in exclude_dirs and not _is_kept_folder(os.path.join(root, d))
+            ]
             for f in files:
-                if (f.endswith(".py") and f not in exclude_files and f not in keep_py_set):
-                    py_files.append(os.path.join(root, f))
+                file_path = os.path.join(root, f)
+                if f.endswith(".py") and f not in exclude_files and not _is_kept_file(file_path):
+                    py_files.append(file_path)
 
         total = len(py_files)
         print(f"COUNT:{total}", flush=True)
@@ -192,6 +212,7 @@ def main():
 
         def _ignore(src_dir, names):
             ignored = set()
+            in_kept_folder = _is_kept_folder(src_dir)
             for name in names:
                 full = os.path.join(src_dir, name)
                 if os.path.isdir(full):
@@ -203,9 +224,9 @@ def main():
                         ignored.add(name)
                     elif any(name.endswith(e.lstrip("*.")) for e in exclude_exts if e.startswith("*")):
                         ignored.add(name)
-                    elif name.endswith(".py") and name not in keep_py_set:
+                    elif name.endswith(".py") and not in_kept_folder and not _is_kept_file(full):
                         ignored.add(name)
-                    elif obfuscate_web and ext in web_exts:
+                    elif obfuscate_web and not in_kept_folder and ext in web_exts:
                         ignored.add(name)
             return ignored
 
@@ -215,7 +236,10 @@ def main():
         if obfuscate_web:
             web_count = 0
             for root, dirs, files in os.walk(args.src):
-                dirs[:] = [d for d in dirs if d not in exclude_dirs]
+                dirs[:] = [
+                    d for d in dirs
+                    if d not in exclude_dirs and not _is_kept_folder(os.path.join(root, d))
+                ]
                 for f in files:
                     ext = os.path.splitext(f)[1].lower()
                     if ext in web_exts:
@@ -269,10 +293,15 @@ if __name__ == "__main__":
 '''
 
 CONFIG_DEFAULT = {
-    "exclude_dirs": [".opencode", ".playwright-mcp", "venv", ".git", "__pycache__", "build", "dist", "node_modules", "alembic", "migrations"],
+    "exclude_dirs": [
+        "venv", ".git", ".ai", ".cline", ".github", ".opencode", ".vscode",
+        ".playwright-mcp", "__pycache__", "build", "dist", "node_modules",
+        "alembic", "migrations",
+    ],
     "exclude_files": ["setup.py"],
     "exclude_extensions": ["*.pyc", "*.pyo", "*.c", "*.cpp", "*.obj"],
-    "keep_py_files": [],
+    "keep_files": ["main.py"],
+    "keep_folders": ["static", "templates/components"],
     "obfuscate_web": True,
 }
 
@@ -533,7 +562,8 @@ class PyToPydConverter:
                 'exclude_dirs': self.config.get('exclude_dirs', CONFIG_DEFAULT['exclude_dirs']),
                 'exclude_files': self.config.get('exclude_files', CONFIG_DEFAULT['exclude_files']),
                 'exclude_extensions': self.config.get('exclude_extensions', CONFIG_DEFAULT['exclude_extensions']),
-                'keep_py_files': self.config.get('keep_py_files', CONFIG_DEFAULT['keep_py_files']),
+                'keep_files': self.config.get('keep_files', self.config.get('keep_py_files', CONFIG_DEFAULT['keep_files'])),
+                'keep_folders': self.config.get('keep_folders', CONFIG_DEFAULT['keep_folders']),
                 'obfuscate_web': self.config.get('obfuscate_web', True),
             }
             cfg_path = os.path.join(tempfile.gettempdir(), 'pyd_config.json')

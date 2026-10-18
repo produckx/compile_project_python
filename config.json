@@ -2,7 +2,11 @@
   "exclude_dirs": [
     "venv",
     ".git",
+    ".ai",
+    ".cline",
+    ".github",
     ".opencode",
+    ".vscode",
     ".playwright-mcp",
     "__pycache__",
     "build",
@@ -21,8 +25,12 @@
     "*.cpp",
     "*.obj"
   ],
-  "keep_py_files": [
+  "keep_files": [
     "main.py"
+  ],
+  "keep_folders": [
+    "static",
+    "templates/components"
   ],
   "obfuscate_web": true
 }
