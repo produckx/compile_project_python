@@ -3,7 +3,7 @@
 */venv
 .vscode/
 .playwright/
-_
+__pycache__
 
 *.spec
 
