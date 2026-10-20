@@ -16,7 +16,8 @@
     "migrations"
   ],
   "exclude_files": [
-    "setup.py"
+    "setup.py",
+    "main.py"
   ],
   "exclude_extensions": [
     "*.pyc",
@@ -26,10 +27,11 @@
     "*.obj"
   ],
   "keep_files": [
-    "main.py"
+    "main.py",
+    "main_obf.py"
   ],
   "keep_folders": [
-    "static"
+    "static/swagger-ui"
   ],
   "obfuscate_web": true
 }
